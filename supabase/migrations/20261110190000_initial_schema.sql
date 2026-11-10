@@ -348,6 +348,7 @@ on public.contracts for insert to authenticated
 with check (
   created_by = (select auth.uid())
   and owner_user_id = (select auth.uid())
+  and status = 'draft'
   and (select private.has_org_role(organization_id, array['owner','director','manager']::public.organization_role[]))
 );
 create policy "contracts_update_working_roles"
