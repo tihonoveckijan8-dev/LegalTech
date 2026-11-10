@@ -1,6 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { App } from "../../app/App";
 import { WorkspaceGate } from "./WorkspaceGate";
 import { isSupabaseConfigured, supabase } from "./client";
 import "./AuthGate.css";
@@ -37,9 +36,9 @@ export function AuthGate() {
   }, [client]);
 
   // WHY: never present in-memory demo records as a real authenticated workspace.
-  // The preview is opt-in and must be enabled explicitly at build time.
+  // No unpersisted demo workspace is shown as if it were production data.
   if (!isSupabaseConfigured || !client) {
-    return import.meta.env.VITE_ENABLE_DEMO_MODE === "true" ? <App /> : <main className="auth-screen"><section className="auth-card auth-setup-card"><a className="auth-brand" href="./" aria-label="LegalFlow"><span className="auth-brand-mark">L</span><span>legal<span>flow</span></span></a><div className="auth-eyebrow">ТРЕБУЕТСЯ НАСТРОЙКА</div><h1>Подключите рабочую базу</h1><p className="auth-subtitle">LegalFlow опубликован, но серверная база данных ещё не настроена. Чтобы включить регистрацию, вход и сохранение договоров, подключите отдельный Supabase-проект.</p><div className="auth-setup-steps"><div><strong>01</strong><span>Создайте отдельный Supabase project для LegalTech.</span></div><div><strong>02</strong><span>Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY в GitHub Actions Variables.</span></div><div><strong>03</strong><span>Примените SQL-миграции по инструкции в docs/SUPABASE_SETUP.md.</span></div></div><p className="auth-setup-note">Не добавляйте service_role или secret key в настройки фронтенда.</p></section><footer className="auth-footer">LEGALFLOW · ЗАЩИЩЁННОЕ РАБОЧЕЕ ПРОСТРАНСТВО</footer></main>;
+    return <main className="auth-screen"><section className="auth-card auth-setup-card"><a className="auth-brand" href="./" aria-label="LegalFlow"><span className="auth-brand-mark">L</span><span>legal<span>flow</span></span></a><div className="auth-eyebrow">ТРЕБУЕТСЯ НАСТРОЙКА</div><h1>Подключите рабочую базу</h1><p className="auth-subtitle">LegalFlow опубликован, но серверная база данных ещё не настроена. Чтобы включить регистрацию, вход и сохранение договоров, подключите отдельный Supabase-проект.</p><div className="auth-setup-steps"><div><strong>01</strong><span>Создайте отдельный Supabase project для LegalTech.</span></div><div><strong>02</strong><span>Добавьте VITE_SUPABASE_URL и VITE_SUPABASE_PUBLISHABLE_KEY в GitHub Actions Variables.</span></div><div><strong>03</strong><span>Примените SQL-миграции по инструкции в docs/SUPABASE_SETUP.md.</span></div></div><p className="auth-setup-note">Не добавляйте service_role или secret key в настройки фронтенда.</p></section><footer className="auth-footer">LEGALFLOW · ЗАЩИЩЁННОЕ РАБОЧЕЕ ПРОСТРАНСТВО</footer></main>;
   }
   const authClient = client;
 
