@@ -1,6 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./app/App";
+import { AuthGate } from "./lib/supabase/AuthGate";
 import "./app/App.css";
 
 const rootElement = document.getElementById("root");
@@ -11,6 +11,6 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <App />
+    <AuthGate />
   </StrictMode>
 );
