@@ -391,3 +391,70 @@ button:disabled { cursor: not-allowed; }
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Contract register and modal */
+.text-button { border: 0; background: transparent; color: var(--brand); cursor: pointer; font-size: 10px; font-weight: 650; }
+.register-section { display: grid; gap: 15px; }
+.register-toolbar { display: flex; align-items: center; gap: 10px; }
+.search-field { display: flex; min-height: 40px; flex: 1; align-items: center; gap: 9px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #98a3b5; }
+.search-field input { width: 100%; border: 0; outline: 0; color: var(--ink); font: inherit; font-size: 11px; }
+.search-field input::placeholder { color: #a5afbd; }
+.filter-select { min-height: 40px; padding: 0 30px 0 11px; border: 1px solid var(--line); border-radius: 9px; background: #fff; color: #68758b; font: inherit; font-size: 10px; }
+.register-toolbar .primary-button { min-height: 40px; cursor: pointer; }
+.table-card { overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: var(--shadow); }
+.table-heading { display: flex; align-items: center; justify-content: space-between; padding: 18px 19px; border-bottom: 1px solid #eff2f6; }
+.table-heading h2 { margin: 0; color: #29364c; font-size: 12px; }
+.table-heading p { margin: 5px 0 0; color: #9aa4b4; font-size: 9px; }
+.table-scroll { overflow-x: auto; }
+.contracts-table { width: 100%; border-collapse: collapse; text-align: left; white-space: nowrap; }
+.contracts-table th { padding: 12px 17px; background: #fafbfd; color: #9aa4b4; font-size: 9px; font-weight: 650; }
+.contracts-table td { padding: 14px 17px; border-top: 1px solid #f0f2f6; color: #68758b; font-size: 10px; }
+.contracts-table td:first-child { min-width: 190px; }
+.contracts-table td strong, .contracts-table td small { display: block; }
+.contracts-table td strong { color: #344158; font-size: 10px; font-weight: 650; }
+.contracts-table td small { margin-top: 4px; color: #a5afbd; font-size: 8px; }
+.contracts-table tbody tr:hover { background: #fbfcff; }
+.status-badge { display: inline-flex; align-items: center; padding: 5px 8px; border-radius: 20px; font-size: 8px; font-weight: 650; }
+.status-badge.is-draft { background: #f1f4f8; color: #778398; }
+.status-badge.is-review { background: #fff6e7; color: #b27c27; }
+.status-badge.is-signed { background: #eaf7f0; color: #3b8a66; }
+.register-empty { display: flex; min-height: 300px; flex-direction: column; align-items: center; justify-content: center; padding: 28px; text-align: center; }
+.register-empty h3 { margin: 0; color: #44516a; font-size: 12px; }
+.register-empty p { max-width: 310px; margin: 7px 0 15px; color: #9aa4b4; font-size: 10px; line-height: 1.6; }
+.secondary-button { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 7px; padding: 0 11px; border: 1px solid #e5eaf2; border-radius: 8px; background: #fff; color: #52617a; cursor: pointer; font: inherit; font-size: 10px; font-weight: 650; }
+.secondary-button:hover { border-color: #cbd8f5; background: #f8faff; color: var(--brand); }
+.modal-backdrop { position: fixed; z-index: 20; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(20, 31, 52, .38); }
+.contract-modal { width: min(100%, 480px); padding: 24px; border: 1px solid #e8edf5; border-radius: 16px; background: #fff; box-shadow: 0 24px 80px rgba(17, 31, 58, .2); }
+.modal-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 22px; }
+.modal-heading h2 { margin: 7px 0 0; color: var(--ink); font-size: 21px; letter-spacing: -.6px; }
+.modal-close { width: 30px; height: 30px; border: 0; border-radius: 8px; background: #f4f6fa; color: #788499; cursor: pointer; font-size: 21px; line-height: 1; }
+.contract-modal form { display: grid; gap: 15px; }
+.contract-modal form > label { display: grid; gap: 7px; color: #56637a; font-size: 10px; font-weight: 650; }
+.contract-modal input { width: 100%; min-height: 40px; padding: 0 11px; border: 1px solid #e5eaf2; border-radius: 8px; outline: none; color: var(--ink); font: inherit; font-size: 11px; }
+.contract-modal input:focus { border-color: #8ea8ed; box-shadow: 0 0 0 3px rgba(36, 88, 232, .1); }
+.contract-modal input::placeholder { color: #b0b8c5; }
+.modal-note { display: flex; align-items: flex-start; gap: 8px; padding: 11px; border-radius: 8px; background: #f5f7fb; color: #8793a7; font-size: 9px; line-height: 1.5; }
+.modal-note svg { flex: 0 0 auto; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 5px; }
+.modal-actions .primary-button { cursor: pointer; }
+.recent-list { display: grid; margin-top: 15px; }
+.recent-row { display: flex; align-items: center; gap: 10px; padding: 12px 0; border-top: 1px solid #f0f2f6; }
+.recent-file { display: grid; width: 32px; height: 32px; flex: 0 0 auto; place-items: center; border-radius: 8px; background: #f2f5fb; color: #8192b3; }
+.recent-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.recent-copy strong { overflow: hidden; color: #46536a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.recent-copy small { color: #a0aaba; font-size: 9px; }
+.milestone-list { display: grid; gap: 17px; margin-top: 21px; }
+.milestone-list > div { display: flex; gap: 10px; }
+.milestone-list > div > span { display: grid; width: 27px; height: 27px; flex: 0 0 auto; place-items: center; border: 1px solid #e6ebf4; border-radius: 8px; color: #8191ae; font-size: 9px; font-weight: 700; }
+.milestone-list section strong { color: #58657b; font-size: 10px; }
+.milestone-list section p { margin: 4px 0 0; color: #9aa4b4; font-size: 9px; line-height: 1.5; }
+@media (max-width: 640px) {
+  .register-toolbar { align-items: stretch; flex-wrap: wrap; }
+  .search-field { flex-basis: 100%; }
+  .filter-select { flex: 1; }
+  .register-toolbar .primary-button { flex: 1; }
+  .table-heading { padding: 15px; }
+  .contracts-table th, .contracts-table td { padding-right: 12px; padding-left: 12px; }
+  .contract-modal { padding: 19px; }
+}
