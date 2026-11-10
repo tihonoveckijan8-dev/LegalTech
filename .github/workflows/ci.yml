@@ -31,8 +31,8 @@ jobs:
       - name: Set up npm
         run: npm install --global npm@11.18.0
 
-      - name: Install dependencies
-        run: npm install --no-audit --no-fund
+      - name: Install dependencies from the committed lockfile
+        run: npm ci --no-audit --no-fund
 
       - name: Typecheck
         run: npm run typecheck
@@ -42,12 +42,3 @@ jobs:
 
       - name: Production build
         run: npm run build
-
-      - name: Save generated dependency lockfile
-        if: always() && hashFiles('package-lock.json') != ''
-        uses: actions/upload-artifact@v6
-        with:
-          name: legalflow-package-lock
-          path: package-lock.json
-          if-no-files-found: error
-          retention-days: 7
