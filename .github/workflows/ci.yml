@@ -19,19 +19,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
           node-version: 24
-          package-manager-cache: false
+          cache: npm
 
-      # WHY: npm 10's Arborist can crash while resolving Vite 8's optional
-      # peer-dependency graph (npm/cli #9787). Pin npm 11 for deterministic CI.
+      # WHY: npm 10's Arborist can crash while resolving this dependency graph.
+      # Node 24 is paired with a pinned npm 11 release for repeatable installs.
       - name: Set up npm
         run: npm install --global npm@11.18.0
 
-      - name: Install dependencies from the committed lockfile
+      - name: Install locked dependencies
         run: npm ci --no-audit --no-fund
 
       - name: Typecheck
