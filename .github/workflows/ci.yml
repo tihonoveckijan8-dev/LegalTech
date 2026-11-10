@@ -10,7 +10,7 @@ on:
       - main
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   verify:
@@ -18,16 +18,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
+        uses: actions/checkout@v7
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 24
+          package-manager-cache: false
 
-      - name: Install dependencies and generate lockfile
+      # WHY: npm 10's Arborist can crash while resolving Vite 8's optional
+      # peer-dependency graph (npm/cli #9787). Pin npm 11 for deterministic CI.
+      - name: Set up npm
+        run: npm install --global npm@11.18.0
+
+      - name: Install dependencies
         run: npm install --no-audit --no-fund
 
       - name: Typecheck
@@ -39,15 +43,11 @@ jobs:
       - name: Production build
         run: npm run build
 
-      # WHY: Commit the generated lockfile once so future CI runs use the exact
-      # dependency graph. This runs only on pushes to the development branch.
-      - name: Commit initial lockfile
-        if: github.event_name == 'push' && github.ref == 'refs/heads/feature/legalflow-mvp'
-        run: |
-          if ! git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add package-lock.json
-            git commit -m "Add npm lockfile"
-            git push
-          fi
+      - name: Save generated dependency lockfile
+        if: always() && hashFiles('package-lock.json') != ''
+        uses: actions/upload-artifact@v6
+        with:
+          name: legalflow-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
