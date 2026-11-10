@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { Session } from "@supabase/supabase-js";
+import { App } from "../../app/App";
 import { supabase } from "./client";
 import "./WorkspaceGate.css";
 
@@ -23,6 +24,7 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
 
   const loadOrganizations = useCallback(async () => {
     if (!supabase) return;
@@ -103,6 +105,8 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
   }
 
   const selectedOrganization = organizations.find((organization) => organization.id === selectedId);
+
+  if (activeOrganization) return <App organizationId={activeOrganization.id} organizationName={activeOrganization.name} currency={activeOrganization.default_currency} />;
 
   return (
     <main className="workspace-screen">
