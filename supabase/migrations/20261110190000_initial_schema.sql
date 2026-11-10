@@ -102,6 +102,7 @@ create table public.contract_versions (
   created_at timestamptz not null default now(),
   unique (contract_id, version_number),
   unique (organization_id, id),
+  unique (organization_id, contract_id, id),
   foreign key (organization_id, contract_id)
     references public.contracts(organization_id, id) on delete cascade
 );
@@ -135,8 +136,8 @@ create table public.contract_comments (
   created_at timestamptz not null default now(),
   foreign key (organization_id, contract_id)
     references public.contracts(organization_id, id) on delete cascade,
-  foreign key (organization_id, version_id)
-    references public.contract_versions(organization_id, id)
+  foreign key (organization_id, contract_id, version_id)
+    references public.contract_versions(organization_id, contract_id, id)
 );
 
 create table public.contract_tasks (
@@ -154,7 +155,7 @@ create table public.contract_tasks (
   updated_at timestamptz not null default now(),
   unique (organization_id, id),
   foreign key (organization_id, contract_id)
-    references public.contracts(organization_id, id) on delete set null
+    references public.contracts(organization_id, id) on delete cascade
 );
 
 create table public.contract_documents (
@@ -168,8 +169,8 @@ create table public.contract_documents (
   created_at timestamptz not null default now(),
   foreign key (organization_id, contract_id)
     references public.contracts(organization_id, id) on delete cascade,
-  foreign key (organization_id, version_id)
-    references public.contract_versions(organization_id, id)
+  foreign key (organization_id, contract_id, version_id)
+    references public.contract_versions(organization_id, contract_id, id)
 );
 
 create table public.audit_events (
@@ -422,10 +423,10 @@ using (
 
 -- Explicit least-privilege grants: grants control table reachability; RLS controls rows.
 revoke all on all tables in schema public from anon, authenticated;
-grant select, update on public.profiles to authenticated;
+grant usage on schema public to authenticated;\ngrant select on public.profiles to authenticated;\ngrant update (display_name) on public.profiles to authenticated;
 grant select on public.organizations, public.organization_memberships to authenticated;
 grant select, insert, update on public.counterparties to authenticated;
-grant select, insert, update on public.contracts to authenticated;
+grant select, insert on public.contracts to authenticated;\ngrant update (counterparty_id, contract_number, title, contract_type, amount, currency, effective_date, expiration_date, owner_user_id, description) on public.contracts to authenticated;
 grant select, insert on public.contract_versions to authenticated;
 grant select on public.approval_steps to authenticated;
 grant select, insert on public.contract_comments to authenticated;
