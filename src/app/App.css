@@ -458,3 +458,5 @@ button:disabled { cursor: not-allowed; }
   .contracts-table th, .contracts-table td { padding-right: 12px; padding-left: 12px; }
   .contract-modal { padding: 19px; }
 }
+
+.register-error{margin:10px 0;padding:10px 12px;border:1px solid #f3d7d4;border-radius:8px;background:#fff5f4;color:#a7433b;font-size:11px;line-height:1.55}
