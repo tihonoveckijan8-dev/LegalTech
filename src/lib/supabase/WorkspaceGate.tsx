@@ -153,7 +153,7 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
             </div>
             {selectedOrganization && (
               <div className="workspace-selected-note" role="status">
-                Выбрано: <strong>{selectedOrganization.name}</strong>. Подключение реестра договоров — следующий этап настройки.
+                Выбрано: <strong>{selectedOrganization.name}</strong>. Данные будут загружаться из защищённой базы этой организации.
               </div>
             )}
           </section>
