@@ -12,7 +12,7 @@ export type IconName =
   | "file"
   | "calendar"
   | "clock"
-  | "shield";
+  | "shield"\n  | "info";
 
 const paths: Record<IconName, string> = {
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z",
@@ -28,7 +28,7 @@ const paths: Record<IconName, string> = {
   file: "M7 3h7l4 4v14H7z M14 3v5h5 M10 13h5 M10 17h5",
   calendar: "M4 5h16v16H4z M8 3v4 M16 3v4 M4 10h16",
   clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z M12 6v6l4 2",
-  shield: "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z M9 12l2 2 4-4"
+  shield: "M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11z M9 12l2 2 4-4",\n  info: "M12 16v-4 M12 8h.01 M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0z"
 };
 
 type IconProps = {
