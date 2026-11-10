@@ -28,11 +28,9 @@ Repository Settings → Secrets and variables → Actions → Variables:
 
 These are public client configuration values. Never store a Supabase secret/service_role key in the frontend or GitHub Actions variables used by the Vite build.
 
-## 6. Preview mode
+## 6. Organization onboarding
 
-Without Supabase configuration, the deployed site now shows a setup screen instead of presenting temporary demo records as real business data. For an explicitly local visual preview only, set `VITE_ENABLE_DEMO_MODE=true` at build time. Demo records remain in memory and are lost on reload; never use this mode for real contracts.
-
-After a successful sign-in, the app loads active organization memberships. A user without an active organization can create one; the `create_organization` database function creates the organization, owner membership, and audit event in one transaction.
+Without Supabase configuration, the deployed site shows a setup screen instead of presenting temporary demo records as real business data. After a successful sign-in, the app loads active organization memberships. A user without an active organization can create one; the `create_organization` database function creates the organization, owner membership, and audit event in one transaction.
 
 ## 7. Verify before production use
 
