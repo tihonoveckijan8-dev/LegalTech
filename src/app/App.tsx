@@ -12,7 +12,7 @@ const navigation = [
   { id: "settings", label: "Настройки", icon: "settings", group: "Компания" }
 ] as const;
 type PageId = (typeof navigation)[number]["id"];
-type ContractStatus = "Черновик" | "На согласовании" | "Подписан";
+type ContractStatus = "Черновик" | "На согласовании" | "Подписан" | "Отклонён" | "В архиве";
 type Contract = { id: string; title: string; counterparty: string; amount: string; status: ContractStatus; updated: string };
 
 const pageContent: Record<PageId, { title: string; description: string; icon: IconName }> = {
@@ -52,7 +52,7 @@ function ContractRegister({ contracts, onCreate, loading, error, currency }: { c
     return matchesQuery && (filter === "Все статусы" || contract.status === filter);
   }), [contracts, query, filter]);
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "").trim();
