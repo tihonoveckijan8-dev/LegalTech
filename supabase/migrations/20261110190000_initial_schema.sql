@@ -423,10 +423,13 @@ using (
 
 -- Explicit least-privilege grants: grants control table reachability; RLS controls rows.
 revoke all on all tables in schema public from anon, authenticated;
-grant usage on schema public to authenticated;\ngrant select on public.profiles to authenticated;\ngrant update (display_name) on public.profiles to authenticated;
+grant usage on schema public to authenticated;
+grant select on public.profiles to authenticated;
+grant update (display_name) on public.profiles to authenticated;
 grant select on public.organizations, public.organization_memberships to authenticated;
 grant select, insert, update on public.counterparties to authenticated;
-grant select, insert on public.contracts to authenticated;\ngrant update (counterparty_id, contract_number, title, contract_type, amount, currency, effective_date, expiration_date, owner_user_id, description) on public.contracts to authenticated;
+grant select, insert on public.contracts to authenticated;
+grant update (counterparty_id, contract_number, title, contract_type, amount, currency, effective_date, expiration_date, owner_user_id, description) on public.contracts to authenticated;
 grant select, insert on public.contract_versions to authenticated;
 grant select on public.approval_steps to authenticated;
 grant select, insert on public.contract_comments to authenticated;
