@@ -155,6 +155,7 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
               <div className="workspace-selected-note" role="status">
                 Выбрано: <strong>{selectedOrganization.name}</strong>. Данные будут загружаться из защищённой базы этой организации.
               </div>
+              <button className="workspace-primary" type="button" onClick={() => setActiveOrganization(selectedOrganization)}>Открыть рабочее пространство</button>
             )}
           </section>
         ) : (
