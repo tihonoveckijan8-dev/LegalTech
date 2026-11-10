@@ -14,12 +14,10 @@ export function AuthGate() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  // Keep the existing preview usable until a dedicated Supabase project is configured.
-  if (!isSupabaseConfigured || !supabase) return <App />;
-
   const client = supabase;
 
   useEffect(() => {
+    if (!client) { setChecking(false); return; }
     let alive = true;
     client.auth.getSession().then(({ data, error: sessionError }) => {
       if (!alive) return;
@@ -36,6 +34,9 @@ export function AuthGate() {
       subscription.unsubscribe();
     };
   }, [client]);
+
+  // Keep the existing preview usable until a dedicated Supabase project is configured.
+  if (!isSupabaseConfigured || !client) return <App />;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
