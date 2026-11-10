@@ -37,6 +37,7 @@ export function AuthGate() {
 
   // Keep the existing preview usable until a dedicated Supabase project is configured.
   if (!isSupabaseConfigured || !client) return <App />;
+  const authClient = client;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,10 +49,10 @@ export function AuthGate() {
     const password = String(form.get("password") ?? "");
     try {
       if (mode === "signin") {
-        const { error: authError } = await client.auth.signInWithPassword({ email, password });
+        const { error: authError } = await authClient.auth.signInWithPassword({ email, password });
         if (authError) throw authError;
       } else if (mode === "signup") {
-        const { data, error: authError } = await client.auth.signUp({
+        const { data, error: authError } = await authClient.auth.signUp({
           email,
           password,
           options: { emailRedirectTo: window.location.origin + window.location.pathname }
@@ -59,7 +60,7 @@ export function AuthGate() {
         if (authError) throw authError;
         if (!data.session) setMessage("Проверьте почту и подтвердите адрес. После подтверждения вернитесь сюда и войдите.");
       } else {
-        const { error: authError } = await client.auth.resetPasswordForEmail(email, {
+        const { error: authError } = await authClient.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + window.location.pathname
         });
         if (authError) throw authError;
@@ -74,7 +75,7 @@ export function AuthGate() {
 
   if (checking) return <main className="auth-screen"><div className="auth-loading"><span className="auth-spinner"/>Проверяем защищённую сессию…</div></main>;
 
-  if (session) return <><div className="session-toolbar"><span>{session.user.email}</span><button type="button" onClick={() => client.auth.signOut()}>Выйти</button></div><App /></>;
+  if (session) return <><div className="session-toolbar"><span>{session.user.email}</span><button type="button" onClick={() => authClient.auth.signOut()}>Выйти</button></div><App /></>;
 
   const title = mode === "signin" ? "С возвращением" : mode === "signup" ? "Создать аккаунт" : "Восстановить пароль";
   const subtitle = mode === "signin" ? "Войдите, чтобы продолжить работу с договорами." : mode === "signup" ? "Создайте защищённый доступ к LegalFlow." : "Укажите рабочую почту — отправим ссылку для восстановления.";
