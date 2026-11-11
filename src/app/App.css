@@ -467,3 +467,56 @@ button:disabled { cursor: not-allowed; }
 .contract-modal textarea::placeholder { color: #b0b8c5; }
 .contracts-table td:last-child { min-width: 88px; text-align: right; }
 @media (max-width: 480px) { .contract-date-grid { grid-template-columns: 1fr; gap: 15px; } }
+
+.contract-row-actions { display: inline-flex; align-items: center; gap: 12px; }
+.document-backdrop { z-index: 30; }
+.document-modal {
+  display: flex;
+  width: min(100%, 650px);
+  max-height: min(88vh, 820px);
+  flex-direction: column;
+  overflow: hidden;
+  padding: 23px;
+  border: 1px solid #e8edf5;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 24px 80px rgba(17, 31, 58, .2);
+}
+.document-modal .modal-heading { flex: 0 0 auto; margin-bottom: 17px; }
+.document-modal .modal-heading h2 { font-size: 20px; }
+.document-contract-title { max-width: 500px; margin: 6px 0 0; overflow: hidden; color: #7e8ba0; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.document-upload-form { display: grid; flex: 0 0 auto; gap: 11px; padding: 14px; border: 1px solid #e9edf4; border-radius: 11px; background: #fbfcfe; }
+.document-file-field { display: flex; min-height: 58px; align-items: center; gap: 11px; padding: 10px; border: 1px dashed #cfd8e8; border-radius: 9px; background: #fff; color: #8292ad; cursor: pointer; }
+.document-file-field > span:first-of-type { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.document-file-field strong { overflow: hidden; color: #52617a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.document-file-field small { color: #9aa5b6; font-size: 9px; }
+.document-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; clip-path: inset(50%); }
+.document-note-field { display: grid; gap: 6px; color: #69768c; font-size: 9px; font-weight: 650; }
+.document-note-field input { min-height: 36px; padding: 0 10px; border: 1px solid #e5eaf2; border-radius: 8px; outline: none; color: var(--ink); font: inherit; font-size: 10px; }
+.document-note-field input:focus { border-color: #8ea8ed; box-shadow: 0 0 0 3px rgba(36, 88, 232, .1); }
+.document-upload-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.document-upload-actions > span { max-width: 300px; color: #9aa4b4; font-size: 9px; line-height: 1.5; }
+.document-upload-actions .primary-button { cursor: pointer; }
+.document-history-heading { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; gap: 12px; margin: 19px 0 10px; }
+.document-history-heading h3 { margin: 0; color: #344158; font-size: 11px; }
+.document-history-heading p { margin: 4px 0 0; color: #9aa4b4; font-size: 9px; }
+.document-history-heading .text-button:disabled { opacity: .5; cursor: wait; }
+.document-version-list { display: grid; min-height: 80px; gap: 0; overflow-y: auto; margin: 0; padding: 0; list-style: none; }
+.document-version-row { display: flex; min-width: 0; align-items: center; gap: 11px; padding: 12px 2px; border-top: 1px solid #f0f2f6; }
+.document-version-mark { display: grid; width: 34px; height: 34px; flex: 0 0 auto; place-items: center; border-radius: 9px; background: #edf3ff; color: #4266c4; font-size: 9px; font-weight: 750; }
+.document-version-copy { display: grid; min-width: 0; flex: 1; gap: 4px; }
+.document-version-copy strong { overflow: hidden; color: #46536a; font-size: 10px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.document-version-copy small { color: #9aa4b4; font-size: 8px; }
+.document-version-copy .document-change-note { overflow-wrap: anywhere; color: #7d8ba2; font-size: 9px; }
+.document-download { min-height: 30px; flex: 0 0 auto; }
+.document-empty { display: grid; min-height: 90px; place-items: center; padding: 18px; color: #9aa4b4; font-size: 10px; text-align: center; }
+.document-security-note { display: flex; flex: 0 0 auto; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 10px; border-radius: 8px; background: #f5f7fb; color: #8793a7; font-size: 9px; line-height: 1.5; }
+.document-security-note svg { flex: 0 0 auto; }
+@media (max-width: 520px) {
+  .document-modal { max-height: 92vh; padding: 17px; }
+  .document-upload-actions { align-items: stretch; flex-direction: column; }
+  .document-upload-actions .primary-button { width: 100%; }
+  .document-version-row { gap: 8px; }
+  .document-download { padding: 0 8px; }
+  .contract-row-actions { gap: 8px; }
+}
