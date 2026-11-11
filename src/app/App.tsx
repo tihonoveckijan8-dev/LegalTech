@@ -15,6 +15,24 @@ type PageId = (typeof navigation)[number]["id"];
 type ContractStatus = "Черновик" | "На согласовании" | "Подписан" | "Отклонён" | "В архиве";
 type Contract = { id: string; title: string; counterparty: string; amount: string; amountValue: string; contractNumber: string; effectiveDate: string; expirationDate: string; description: string; status: ContractStatus; updated: string };
 type ContractForm = { title: string; counterparty: string; amount: string; contractNumber: string; effectiveDate: string; expirationDate: string; description: string };
+type DocumentVersion = {
+  id: string;
+  version_number: number;
+  original_filename: string;
+  mime_type: string | null;
+  file_size_bytes: number | null;
+  change_note: string | null;
+  uploaded_by: string;
+  created_at: string;
+  storage_path: string;
+};
+
+function formatFileSize(bytes: number | null) {
+  if (bytes == null) return "Размер неизвестен";
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} КБ`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
 
 const pageContent: Record<PageId, { title: string; description: string; icon: IconName }> = {
   overview: { title: "Обзор договоров", description: "Состояние договорной работы в одном рабочем пространстве.", icon: "overview" },
@@ -44,13 +62,115 @@ function MetricCard({ label, value, hint, icon }: { label: string; value: string
   return <article className="metric-card"><div className="metric-topline"><span>{label}</span><span className="metric-icon"><Icon name={icon} size={17}/></span></div><div className="metric-value">{value}</div><p>{hint}</p></article>;
 }
 
-function ContractRegister({ contracts, onCreate, onUpdate, loading, error, currency }: { contracts: Contract[]; onCreate: (contract: ContractForm) => Promise<void>; onUpdate: (id: string, contract: ContractForm) => Promise<void>; loading: boolean; error: string; currency: string }) {
+function DocumentManager({ contract, onClose, onLoadVersions, onUploadVersion, onDownloadVersion }: {
+  contract: Contract;
+  onClose: () => void;
+  onLoadVersions: (contractId: string) => Promise<DocumentVersion[]>;
+  onUploadVersion: (contractId: string, file: File, changeNote: string) => Promise<void>;
+  onDownloadVersion: (version: DocumentVersion) => Promise<void>;
+}) {
+  const [versions, setVersions] = useState<DocumentVersion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [changeNote, setChangeNote] = useState("");
+  const [error, setError] = useState("");
+  const [downloadingId, setDownloadingId] = useState("");
+
+  const loadVersions = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      setVersions(await onLoadVersions(contract.id));
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось загрузить историю документов.");
+    } finally {
+      setLoading(false);
+    }
+  }, [contract.id, onLoadVersions]);
+
+  useEffect(() => { void loadVersions(); }, [loadVersions]);
+
+  async function submitUpload(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedFile) {
+      setError("Выберите файл для загрузки.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      await onUploadVersion(contract.id, selectedFile, changeNote.trim());
+      setSelectedFile(null);
+      setChangeNote("");
+      const input = document.getElementById("contract-version-file") as HTMLInputElement | null;
+      if (input) input.value = "";
+      await loadVersions();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось загрузить документ.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function download(version: DocumentVersion) {
+    setDownloadingId(version.id);
+    setError("");
+    try {
+      await onDownloadVersion(version);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Не удалось подготовить скачивание.");
+    } finally {
+      setDownloadingId("");
+    }
+  }
+
+  return <div className="modal-backdrop document-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !uploading) onClose(); }}>
+    <section className="document-modal" role="dialog" aria-modal="true" aria-labelledby="document-modal-title">
+      <div className="modal-heading">
+        <div><span className="page-eyebrow">ФАЙЛЫ ДОГОВОРА</span><h2 id="document-modal-title">Документы и версии</h2><p className="document-contract-title">{contract.title}</p></div>
+        <button className="modal-close" type="button" onClick={onClose} disabled={uploading} aria-label="Закрыть">×</button>
+      </div>
+      <form className="document-upload-form" onSubmit={submitUpload}>
+        <label className="document-file-field" htmlFor="contract-version-file">
+          <Icon name="file" size={19}/>
+          <span><strong>{selectedFile ? selectedFile.name : "Выберите PDF или Word-файл"}</strong><small>PDF, DOC, DOCX · до 25 МБ</small></span>
+          <span className="secondary-button">Обзор</span>
+        </label>
+        <input id="contract-version-file" className="document-file-input" type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={event => { setSelectedFile(event.target.files?.[0] ?? null); setError(""); }}/>
+        <label className="document-note-field">Комментарий к версии<input value={changeNote} onChange={event => setChangeNote(event.target.value)} maxLength={1000} placeholder="Например, редакция после замечаний юриста"/></label>
+        <div className="document-upload-actions"><span>Новая загрузка создаёт отдельную версию, не перезаписывая старый файл.</span><button className="primary-button" type="submit" disabled={uploading || !selectedFile}>{uploading ? "Загружаем…" : "Загрузить версию"}</button></div>
+      </form>
+      {error && <div className="register-error" role="alert">{error}</div>}
+      <div className="document-history-heading"><div><h3>История файлов</h3><p>{loading ? "Загружаем историю…" : `${versions.length} ${versions.length === 1 ? "версия" : "версий"}`}</p></div><button className="text-button" type="button" onClick={() => void loadVersions()} disabled={loading}>Обновить</button></div>
+      {loading ? <div className="document-empty">Получаем список из базы данных…</div> : versions.length ? <ol className="document-version-list">{versions.map(version => <li className="document-version-row" key={version.id}>
+        <span className="document-version-mark">v{version.version_number}</span>
+        <span className="document-version-copy"><strong title={version.original_filename}>{version.original_filename}</strong><small>{formatFileSize(version.file_size_bytes)} · {new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(version.created_at))}</small>{version.change_note && <small className="document-change-note">{version.change_note}</small>}</span>
+        <button className="secondary-button document-download" type="button" onClick={() => void download(version)} disabled={Boolean(downloadingId)}>{downloadingId === version.id ? "Готовим…" : "Скачать"}</button>
+      </li>)}</ol> : <div className="document-empty">Пока нет загруженных файлов. Добавьте первую версию документа.</div>}
+      <div className="document-security-note"><Icon name="shield" size={15}/>Файлы находятся в закрытом хранилище. Скачивание выполняется по временной защищённой ссылке.</div>
+    </section>
+  </div>;
+}
+
+function ContractRegister({ contracts, onCreate, onUpdate, onLoadVersions, onUploadVersion, onDownloadVersion, loading, error, currency }: {
+  contracts: Contract[];
+  onCreate: (contract: ContractForm) => Promise<void>;
+  onUpdate: (id: string, contract: ContractForm) => Promise<void>;
+  onLoadVersions: (contractId: string) => Promise<DocumentVersion[]>;
+  onUploadVersion: (contractId: string, file: File, changeNote: string) => Promise<void>;
+  onDownloadVersion: (version: DocumentVersion) => Promise<void>;
+  loading: boolean;
+  error: string;
+  currency: string;
+}) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("Все статусы");
   const [modalOpen, setModalOpen] = useState(false);
   const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [documentsContract, setDocumentsContract] = useState<Contract | null>(null);
   const filtered = useMemo(() => contracts.filter(contract => {
     const matchesQuery = `${contract.title} ${contract.counterparty}`.toLocaleLowerCase("ru").includes(query.toLocaleLowerCase("ru"));
     return matchesQuery && (filter === "Все статусы" || contract.status === filter);
@@ -99,9 +219,10 @@ function ContractRegister({ contracts, onCreate, onUpdate, loading, error, curre
     </div>
     <div className="table-card">
       <div className="table-heading"><div><h2>Реестр договоров</h2><p>{loading ? "Загружаем из базы…" : `${filtered.length} ${filtered.length === 1 ? "договор" : "договоров"}`}</p></div><span className="subtle-tag">Текущий список</span></div>
-      {error && <div className="register-error" role="alert">{error}</div>}{loading ? <div className="register-empty"><p>Получаем договоры из базы данных…</p></div> : filtered.length ? <div className="table-scroll"><table className="contracts-table"><thead><tr><th>Название</th><th>Контрагент</th><th>Сумма</th><th>Статус</th><th>Изменён</th><th></th></tr></thead><tbody>{filtered.map(contract => <tr key={contract.id}><td><strong>{contract.title}</strong><small>{contract.contractNumber ? `№ ${contract.contractNumber}` : `ID ${contract.id.slice(-6)}`}</small></td><td>{contract.counterparty}</td><td>{contract.amount}</td><td><span className={`status-badge ${contract.status === "Подписан" ? "is-signed" : contract.status === "На согласовании" ? "is-review" : "is-draft"}`}>{contract.status}</span></td><td>{contract.updated}</td><td><button className="text-button" type="button" onClick={() => { setEditingContract(contract); setSubmitError(""); setModalOpen(true); }}>Изменить</button></td></tr>)}</tbody></table></div> : <div className="register-empty"><div className="empty-state-icon"><Icon name="file" size={23}/></div><h3>{query || filter !== "Все статусы" ? "Ничего не найдено" : "Добавьте первый договор"}</h3><p>{query || filter !== "Все статусы" ? "Измените поисковый запрос или фильтр." : "Создайте карточку, чтобы начать вести реестр договоров."}</p>{!query && filter === "Все статусы" && <button className="secondary-button" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" size={16}/>Создать договор</button>}</div>}
+      {error && <div className="register-error" role="alert">{error}</div>}{loading ? <div className="register-empty"><p>Получаем договоры из базы данных…</p></div> : filtered.length ? <div className="table-scroll"><table className="contracts-table"><thead><tr><th>Название</th><th>Контрагент</th><th>Сумма</th><th>Статус</th><th>Изменён</th><th></th></tr></thead><tbody>{filtered.map(contract => <tr key={contract.id}><td><strong>{contract.title}</strong><small>{contract.contractNumber ? `№ ${contract.contractNumber}` : `ID ${contract.id.slice(-6)}`}</small></td><td>{contract.counterparty}</td><td>{contract.amount}</td><td><span className={`status-badge ${contract.status === "Подписан" ? "is-signed" : contract.status === "На согласовании" ? "is-review" : "is-draft"}`}>{contract.status}</span></td><td>{contract.updated}</td><td><div className="contract-row-actions"><button className="text-button" type="button" onClick={() => setDocumentsContract(contract)}>Файлы</button><button className="text-button" type="button" onClick={() => { setEditingContract(contract); setSubmitError(""); setModalOpen(true); }}>Изменить</button></div></td></tr>)}</tbody></table></div> : <div className="register-empty"><div className="empty-state-icon"><Icon name="file" size={23}/></div><h3>{query || filter !== "Все статусы" ? "Ничего не найдено" : "Добавьте первый договор"}</h3><p>{query || filter !== "Все статусы" ? "Измените поисковый запрос или фильтр." : "Создайте карточку, чтобы начать вести реестр договоров."}</p>{!query && filter === "Все статусы" && <button className="secondary-button" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" size={16}/>Создать договор</button>}</div>}
     </div>
     {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) { setModalOpen(false); setEditingContract(null); } }}><section className="contract-modal" role="dialog" aria-modal="true" aria-labelledby="contract-modal-title"><div className="modal-heading"><div><span className="page-eyebrow">РЕЕСТР ДОГОВОРОВ</span><h2 id="contract-modal-title">{editingContract ? "Изменить договор" : "Новый договор"}</h2></div><button className="modal-close" type="button" onClick={() => { setModalOpen(false); setEditingContract(null); }} aria-label="Закрыть">×</button></div><form onSubmit={submit}><label>Название договора<input name="title" required minLength={2} maxLength={240} autoFocus defaultValue={editingContract?.title ?? ""} placeholder="Например, Договор оказания услуг"/></label><label>Контрагент<input name="counterparty" required maxLength={240} defaultValue={editingContract?.counterparty === "—" ? "" : editingContract?.counterparty ?? ""} placeholder="Название компании"/></label><label>Номер договора<input name="contractNumber" maxLength={100} defaultValue={editingContract?.contractNumber ?? ""} placeholder="Например, 15/2026"/></label><label>Сумма ({currency})<input name="amount" type="number" min="0" step="0.01" defaultValue={editingContract?.amountValue ?? ""} placeholder="Например, 250000"/></label><div className="contract-date-grid"><label>Дата начала<input name="effectiveDate" type="date" defaultValue={editingContract?.effectiveDate ?? ""}/></label><label>Дата окончания<input name="expirationDate" type="date" defaultValue={editingContract?.expirationDate ?? ""}/></label></div><label>Описание<textarea name="description" rows={3} maxLength={5000} defaultValue={editingContract?.description ?? ""} placeholder="Предмет договора, важные условия…"/></label>{(submitError || error) && <div className="register-error" role="alert">{submitError || error}</div>}<div className="modal-note"><Icon name="shield" size={16}/>{editingContract ? "Изменения сохраняются в выбранной организации. Статус согласования меняется отдельно." : "Карточка будет сохранена в базе выбранной организации и защищена правилами доступа."}</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => { setModalOpen(false); setEditingContract(null); }} disabled={saving}>Отмена</button><button className="primary-button" type="submit" disabled={saving || loading}>{saving ? "Сохраняем…" : editingContract ? "Сохранить изменения" : "Создать договор"}</button></div></form></section></div>}
+    {documentsContract && <DocumentManager contract={documentsContract} onClose={() => setDocumentsContract(null)} onLoadVersions={onLoadVersions} onUploadVersion={onUploadVersion} onDownloadVersion={onDownloadVersion}/>}
   </section>;
 }
 
@@ -167,6 +288,87 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
 
   useEffect(() => { void loadContracts(); }, [loadContracts]);
 
+  const loadDocumentVersions = useCallback(async (contractId: string): Promise<DocumentVersion[]> => {
+    if (!supabase) throw new Error("Supabase не настроен.");
+    const { data, error } = await supabase
+      .from("contract_versions")
+      .select("id, version_number, original_filename, mime_type, file_size_bytes, change_note, uploaded_by, created_at, storage_path")
+      .eq("organization_id", organizationId)
+      .eq("contract_id", contractId)
+      .order("version_number", { ascending: false });
+    if (error) throw error;
+    return (data ?? []) as DocumentVersion[];
+  }, [organizationId]);
+
+  async function uploadDocumentVersion(contractId: string, file: File, changeNote: string) {
+    if (!supabase) throw new Error("Supabase не настроен. Файлы не могут быть сохранены.");
+    const extension = file.name.toLowerCase().match(/\.([^.]+)$/)?.[1];
+    const mimeTypes: Record<string, string> = {
+      pdf: "application/pdf",
+      doc: "application/msword",
+      docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    };
+    const maxBytes = 25 * 1024 * 1024;
+    if (!extension || !mimeTypes[extension]) throw new Error("Разрешены только файлы PDF, DOC и DOCX.");
+    if (file.size <= 0 || file.size > maxBytes) throw new Error("Размер файла должен быть больше нуля и не превышать 25 МБ.");
+
+    const { data: userResult, error: userError } = await supabase.auth.getUser();
+    if (userError || !userResult.user) throw userError ?? new Error("Сессия истекла. Войдите снова.");
+
+    // WHY: storage path starts with organization/contract IDs because the bucket RLS checks those exact segments.
+    const safeName = (file.name.split(/[\\/]/).pop() ?? "document").replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/^\.+/, "").slice(-120) || "document";
+    const storagePath = `${organizationId}/${contractId}/${crypto.randomUUID()}-${safeName}`;
+    const { data: latestVersion, error: latestError } = await supabase
+      .from("contract_versions")
+      .select("version_number")
+      .eq("organization_id", organizationId)
+      .eq("contract_id", contractId)
+      .order("version_number", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (latestError) throw latestError;
+    const nextVersion = (latestVersion?.version_number ?? 0) + 1;
+
+    const { error: storageError } = await supabase.storage.from("legal-contracts").upload(storagePath, file, {
+      contentType: mimeTypes[extension],
+      cacheControl: "3600",
+      upsert: false
+    });
+    if (storageError) throw storageError;
+
+    const { error: versionError } = await supabase.from("contract_versions").insert({
+      organization_id: organizationId,
+      contract_id: contractId,
+      version_number: nextVersion,
+      storage_path: storagePath,
+      original_filename: file.name.slice(0, 255),
+      mime_type: mimeTypes[extension],
+      file_size_bytes: file.size,
+      change_note: changeNote || null,
+      uploaded_by: userResult.user.id
+    });
+    if (versionError) {
+      const { error: cleanupError } = await supabase.storage.from("legal-contracts").remove([storagePath]);
+      if (cleanupError) throw new Error(`${versionError.message} Кроме того, не удалось удалить временно загруженный файл: ${cleanupError.message}`);
+      throw versionError;
+    }
+  }
+
+  async function downloadDocumentVersion(version: DocumentVersion) {
+    if (!supabase) throw new Error("Supabase не настроен.");
+    const { data, error } = await supabase.storage.from("legal-contracts").createSignedUrl(
+      version.storage_path,
+      60,
+      { download: version.original_filename }
+    );
+    if (error) throw error;
+    const link = document.createElement("a");
+    link.href = data.signedUrl;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.click();
+  }
+
   async function resolveCounterpartyId(name: string, userId: string) {
     if (!supabase) throw new Error("Supabase не настроен.");
     const { data: existing, error: lookupError } = await supabase
@@ -231,5 +433,5 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
     if (updateError) throw updateError;
     await loadContracts();
   }
-  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} onUpdate={updateContract} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
+  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} onUpdate={updateContract} onLoadVersions={loadDocumentVersions} onUploadVersion={uploadDocumentVersion} onDownloadVersion={downloadDocumentVersion} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
 }
