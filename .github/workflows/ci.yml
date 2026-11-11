@@ -44,3 +44,36 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+
+  database:
+    name: Local Supabase migrations and security tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.122.1
+
+      # WHY: migrations must replay against a clean local Supabase stack before
+      # any frontend deploy can be considered ready.
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Reapply every migration from a clean database
+        run: supabase db reset --local
+
+      - name: Run database security tests
+        run: supabase test db
+
+      - name: Lint database functions
+        run: supabase db lint --local --level error
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup
