@@ -9,7 +9,8 @@ const navigation = [
   { id: "tasks", label: "Задачи и сроки", icon: "tasks", group: "Работа" },
   { id: "counterparties", label: "Контрагенты", icon: "counterparties", group: "Компания" },
   { id: "team", label: "Участники", icon: "team", group: "Компания" },
-  { id: "settings", label: "Настройки", icon: "settings", group: "Компания" }
+  { id: "settings", label: "Настройки", icon: "settings", group: "Компания" },
+  { id: "audit", label: "Журнал действий", icon: "history", group: "Компания" }
 ] as const;
 type PageId = (typeof navigation)[number]["id"];
 type ContractStatus = "Черновик" | "На согласовании" | "Подписан" | "Отклонён" | "В архиве";
@@ -26,6 +27,79 @@ type DocumentVersion = {
   created_at: string;
   storage_path: string;
 };
+type AuditEvent = {
+  id: number;
+  organization_id: string;
+  actor_id: string | null;
+  actorName: string;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+const auditFieldLabels: Record<string, string> = {
+  title: "название",
+  counterparty_id: "контрагент",
+  contract_number: "номер договора",
+  contract_type: "тип договора",
+  status: "статус",
+  amount: "сумма",
+  currency: "валюта",
+  effective_date: "дата начала",
+  expiration_date: "дата окончания",
+  owner_user_id: "ответственный",
+  description: "описание"
+};
+
+const auditStatusLabels: Record<string, string> = {
+  draft: "Черновик",
+  legal_review: "Юридическая проверка",
+  manager_revision: "Доработка менеджером",
+  accounting_review: "Проверка бухгалтерии",
+  director_approval: "Утверждение директором",
+  approved: "Согласован",
+  signed: "Подписан",
+  rejected: "Отклонён",
+  archived: "В архиве"
+};
+
+function auditActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    "organization.created": "Создание организации",
+    "contract.created": "Создание договора",
+    "contract.updated": "Изменение договора",
+    "contract.document_version_uploaded": "Загрузка версии документа"
+  };
+  return labels[action] ?? "Действие в системе";
+}
+
+function auditEventDescription(event: AuditEvent) {
+  const meta = event.metadata ?? {};
+  if (event.action === "organization.created") {
+    return `Создано рабочее пространство «${String(meta.name ?? "Без названия")}».`;
+  }
+  if (event.action === "contract.created") {
+    return `Создан договор «${String(meta.title ?? "Без названия")}»${meta.contract_number ? ` · № ${String(meta.contract_number)}` : ""}.`;
+  }
+  if (event.action === "contract.updated") {
+    const fields = Array.isArray(meta.changed_fields)
+      ? meta.changed_fields.map((field) => auditFieldLabels[String(field)] ?? String(field))
+      : [];
+    const description = fields.length ? `Изменены поля: ${fields.join(", ")}.` : "Карточка договора обновлена.";
+    if (typeof meta.status_before === "string" && typeof meta.status_after === "string") {
+      return `${description} Статус: ${auditStatusLabels[meta.status_before] ?? meta.status_before} → ${auditStatusLabels[meta.status_after] ?? meta.status_after}.`;
+    }
+    return description;
+  }
+  if (event.action === "contract.document_version_uploaded") {
+    const filename = String(meta.original_filename ?? "Файл");
+    const version = meta.version_number ? ` · версия ${String(meta.version_number)}` : "";
+    return `${filename}${version} · ${formatFileSize(typeof meta.file_size_bytes === "number" ? meta.file_size_bytes : null)}.`;
+  }
+  return event.entity_type === "contract" ? "Карточка договора." : "Запись журнала.";
+}
 
 function formatFileSize(bytes: number | null) {
   if (bytes == null) return "Размер неизвестен";
@@ -41,17 +115,18 @@ const pageContent: Record<PageId, { title: string; description: string; icon: Ic
   tasks: { title: "Задачи и сроки", description: "Обязательства, контрольные даты и ближайшие действия.", icon: "tasks" },
   counterparties: { title: "Контрагенты", description: "Компании и контакты, с которыми работает организация.", icon: "counterparties" },
   team: { title: "Участники", description: "Команда, роли и доступ к рабочему пространству.", icon: "team" },
-  settings: { title: "Настройки", description: "Параметры организации и правила договорных процессов.", icon: "settings" }
+  settings: { title: "Настройки", description: "Параметры организации и правила договорных процессов.", icon: "settings" },
+  audit: { title: "Журнал действий", description: "История ключевых операций в рабочем пространстве.", icon: "history" }
 };
 
-function Sidebar({ activePage, onNavigate, organizationName }: { activePage: PageId; onNavigate: (page: PageId) => void; organizationName: string }) {
+function Sidebar({ activePage, onNavigate, organizationName, canViewAudit }: { activePage: PageId; onNavigate: (page: PageId) => void; organizationName: string; canViewAudit: boolean }) {
   return <aside className="sidebar">
     <div className="brand"><div className="brand-mark" aria-hidden="true">L</div><span>legal<span className="brand-accent">flow</span></span></div>
     <div className="workspace-card"><div className="workspace-avatar">LF</div><div className="workspace-copy"><strong>{organizationName}</strong><span>Подключённая организация</span></div><span className="workspace-menu" aria-hidden="true">···</span></div>
     <nav className="sidebar-nav" aria-label="Основная навигация">
       {(["Работа", "Компания"] as const).map(group => <div className="nav-group" key={group}>
         <p className="nav-group-label">{group}</p>
-        {navigation.filter(item => item.group === group).map(item => <button className={`nav-item ${activePage === item.id ? "is-active" : ""}`} type="button" key={item.id} onClick={() => onNavigate(item.id)} aria-current={activePage === item.id ? "page" : undefined}><Icon name={item.icon} size={18}/><span>{item.label}</span>{item.id === "approvals" && <span className="nav-indicator"/>}</button>)}
+        {navigation.filter(item => item.group === group && (item.id !== "audit" || canViewAudit)).map(item => <button className={`nav-item ${activePage === item.id ? "is-active" : ""}`} type="button" key={item.id} onClick={() => onNavigate(item.id)} aria-current={activePage === item.id ? "page" : undefined}><Icon name={item.icon} size={18}/><span>{item.label}</span>{item.id === "approvals" && <span className="nav-indicator"/>}</button>)}
       </div>)}
     </nav>
     <div className="sidebar-bottom"><div className="sidebar-status"><span className="status-dot"/><span>Серверное хранилище</span></div><div className="sidebar-version">LEGALFLOW · MVP</div></div>
@@ -226,6 +301,48 @@ function ContractRegister({ contracts, onCreate, onUpdate, onLoadVersions, onUpl
   </section>;
 }
 
+function AuditLog({ events, loading, error, onRefresh }: { events: AuditEvent[]; loading: boolean; error: string; onRefresh: () => void }) {
+  const [filter, setFilter] = useState<"all" | "contracts" | "documents">("all");
+  const visibleEvents = events.filter((event) =>
+    filter === "all" ||
+    (filter === "contracts" && event.entity_type === "contract") ||
+    (filter === "documents" && event.entity_type === "contract_version")
+  );
+  const contractEvents = events.filter((event) => event.entity_type === "contract").length;
+  const documentEvents = events.filter((event) => event.entity_type === "contract_version").length;
+
+  return <section className="audit-page">
+    <div className="audit-summary-grid">
+      <article className="audit-summary-card"><span>Всего событий</span><strong>{loading ? "…" : events.length}</strong><small>Последние 100 записей</small></article>
+      <article className="audit-summary-card"><span>По договорам</span><strong>{loading ? "…" : contractEvents}</strong><small>Создание и изменения</small></article>
+      <article className="audit-summary-card"><span>По документам</span><strong>{loading ? "…" : documentEvents}</strong><small>Загрузка версий</small></article>
+    </div>
+    <section className="audit-list-card">
+      <div className="audit-list-heading">
+        <div><h2>История операций</h2><p>Журнал доступен владельцу и директору организации. Записи формируются базой данных.</p></div>
+        <button className="secondary-button" type="button" onClick={onRefresh} disabled={loading}>Обновить</button>
+      </div>
+      <div className="audit-filters" aria-label="Фильтр журнала">
+        <button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}>Все события</button>
+        <button type="button" className={filter === "contracts" ? "is-active" : ""} onClick={() => setFilter("contracts")}>Договоры</button>
+        <button type="button" className={filter === "documents" ? "is-active" : ""} onClick={() => setFilter("documents")}>Документы</button>
+      </div>
+      {error && <div className="register-error" role="alert">{error}</div>}
+      {loading ? <div className="audit-empty">Загружаем журнал действий…</div> : visibleEvents.length ? <ol className="audit-event-list">
+        {visibleEvents.map((event) => <li className="audit-event-row" key={event.id}>
+          <span className={`audit-event-icon ${event.entity_type === "contract_version" ? "is-document" : ""}`} aria-hidden="true">{event.entity_type === "contract_version" ? "↥" : event.entity_type === "organization" ? "⌂" : "↻"}</span>
+          <div className="audit-event-main">
+            <strong>{auditActionLabel(event.action)}</strong>
+            <p>{auditEventDescription(event)}</p>
+            <span>{event.actorName}</span>
+          </div>
+          <time dateTime={event.created_at}>{new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(event.created_at))}</time>
+        </li>)}
+      </ol> : <div className="audit-empty">{events.length ? "Для выбранного фильтра событий пока нет." : "Событий пока нет. Новые операции с договорами и документами появятся здесь автоматически."}</div>}
+    </section>
+  </section>;
+}
+
 function Overview({ contracts, onNavigate }: { contracts: Contract[]; onNavigate: (page: PageId) => void }) {
   const reviewCount = contracts.filter(item => item.status === "На согласовании").length;
   return <>
@@ -237,9 +354,13 @@ function Overview({ contracts, onNavigate }: { contracts: Contract[]; onNavigate
 
 function Placeholder({ page }: { page: PageId }) { const item = pageContent[page]; return <section className="surface-card module-placeholder"><div className="empty-state-icon"><Icon name={item.icon} size={23}/></div><span className="module-kicker">СЛЕДУЮЩИЙ ЭТАП MVP</span><h2>{item.title}</h2><p>{item.description}</p><div className="module-divider"/><p className="module-footnote">Этот раздел подключим к реальным данным после настройки авторизации, организации и безопасного доступа.</p></section>; }
 
-export function App({ organizationId, organizationName, currency = "BYN" }: { organizationId: string; organizationName: string; currency?: string }) {
+export function App({ organizationId, organizationName, currency = "BYN", organizationRole = "" }: { organizationId: string; organizationName: string; currency?: string; organizationRole?: string }) {
   const [activePage, setActivePage] = useState<PageId>("overview");
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
+  const [auditError, setAuditError] = useState("");
+  const canViewAudit = organizationRole === "owner" || organizationRole === "director";
   const [loadingContracts, setLoadingContracts] = useState(true);
   const [contractError, setContractError] = useState("");
   const currentPage = pageContent[activePage];
@@ -287,6 +408,60 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
   }, [organizationId]);
 
   useEffect(() => { void loadContracts(); }, [loadContracts]);
+
+  const loadAuditEvents = useCallback(async () => {
+    if (!supabase) {
+      setAuditError("Supabase не настроен. Журнал действий недоступен.");
+      setLoadingAudit(false);
+      return;
+    }
+    if (!canViewAudit) {
+      setAuditEvents([]);
+      setAuditError("Просмотр журнала доступен только владельцу и директору организации.");
+      setLoadingAudit(false);
+      return;
+    }
+    setLoadingAudit(true);
+    setAuditError("");
+    try {
+      const { data: rows, error: queryError } = await supabase
+        .from("audit_events")
+        .select("id, organization_id, actor_id, action, entity_type, entity_id, metadata, created_at")
+        .eq("organization_id", organizationId)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (queryError) throw queryError;
+
+      const events = (rows ?? []) as Omit<AuditEvent, "actorName">[];
+      const actorIds = [...new Set(events.map((event) => event.actor_id).filter((id): id is string => Boolean(id)))];
+      const profileNames = new Map<string, string>();
+      if (actorIds.length) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, display_name")
+          .in("id", actorIds);
+        if (!profilesError) {
+          (profiles ?? []).forEach((profile) => {
+            if (profile.display_name?.trim()) profileNames.set(profile.id, profile.display_name.trim());
+          });
+        }
+      }
+      setAuditEvents(events.map((event) => ({
+        ...event,
+        actorName: event.actor_id
+          ? profileNames.get(event.actor_id) ?? `Пользователь · ${event.actor_id.slice(0, 8)}`
+          : "Системное действие"
+      })));
+    } catch (caught) {
+      setAuditError(caught instanceof Error ? caught.message : "Не удалось загрузить журнал действий.");
+    } finally {
+      setLoadingAudit(false);
+    }
+  }, [organizationId, canViewAudit]);
+
+  useEffect(() => {
+    if (activePage === "audit" && canViewAudit) void loadAuditEvents();
+  }, [activePage, canViewAudit, loadAuditEvents]);
 
   const loadDocumentVersions = useCallback(async (contractId: string): Promise<DocumentVersion[]> => {
     if (!supabase) throw new Error("Supabase не настроен.");
@@ -433,5 +608,5 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
     if (updateError) throw updateError;
     await loadContracts();
   }
-  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} onUpdate={updateContract} onLoadVersions={loadDocumentVersions} onUploadVersion={uploadDocumentVersion} onDownloadVersion={downloadDocumentVersion} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
+  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName} canViewAudit={canViewAudit}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "audit" ? <AuditLog events={auditEvents} loading={loadingAudit} error={auditError} onRefresh={() => void loadAuditEvents()}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} onUpdate={updateContract} onLoadVersions={loadDocumentVersions} onUploadVersion={uploadDocumentVersion} onDownloadVersion={downloadDocumentVersion} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
 }
