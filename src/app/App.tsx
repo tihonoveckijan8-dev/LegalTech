@@ -13,7 +13,8 @@ const navigation = [
 ] as const;
 type PageId = (typeof navigation)[number]["id"];
 type ContractStatus = "Черновик" | "На согласовании" | "Подписан" | "Отклонён" | "В архиве";
-type Contract = { id: string; title: string; counterparty: string; amount: string; status: ContractStatus; updated: string };
+type Contract = { id: string; title: string; counterparty: string; amount: string; amountValue: string; contractNumber: string; effectiveDate: string; expirationDate: string; description: string; status: ContractStatus; updated: string };
+type ContractForm = { title: string; counterparty: string; amount: string; contractNumber: string; effectiveDate: string; expirationDate: string; description: string };
 
 const pageContent: Record<PageId, { title: string; description: string; icon: IconName }> = {
   overview: { title: "Обзор договоров", description: "Состояние договорной работы в одном рабочем пространстве.", icon: "overview" },
@@ -43,10 +44,11 @@ function MetricCard({ label, value, hint, icon }: { label: string; value: string
   return <article className="metric-card"><div className="metric-topline"><span>{label}</span><span className="metric-icon"><Icon name={icon} size={17}/></span></div><div className="metric-value">{value}</div><p>{hint}</p></article>;
 }
 
-function ContractRegister({ contracts, onCreate, loading, error, currency }: { contracts: Contract[]; onCreate: (contract: { title: string; counterparty: string; amount: string }) => Promise<void>; loading: boolean; error: string; currency: string }) {
+function ContractRegister({ contracts, onCreate, onUpdate, loading, error, currency }: { contracts: Contract[]; onCreate: (contract: ContractForm) => Promise<void>; onUpdate: (id: string, contract: ContractForm) => Promise<void>; loading: boolean; error: string; currency: string }) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("Все статусы");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingContract, setEditingContract] = useState<Contract | null>(null);
   const [submitError, setSubmitError] = useState("");
   const [saving, setSaving] = useState(false);
   const filtered = useMemo(() => contracts.filter(contract => {
@@ -59,12 +61,31 @@ function ContractRegister({ contracts, onCreate, loading, error, currency }: { c
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "").trim();
     const counterparty = String(form.get("counterparty") || "").trim();
-    if (!title || !counterparty) return;
+    const amount = String(form.get("amount") || "").trim();
+    const contractNumber = String(form.get("contractNumber") || "").trim();
+    const effectiveDate = String(form.get("effectiveDate") || "");
+    const expirationDate = String(form.get("expirationDate") || "");
+    const description = String(form.get("description") || "").trim();
+    if (title.length < 2 || title.length > 240 || !counterparty || counterparty.length > 240) {
+      setSubmitError("Название должно содержать 2–240 символов, а контрагент — не более 240 символов.");
+      return;
+    }
+    if (amount && (!Number.isFinite(Number(amount)) || Number(amount) < 0)) {
+      setSubmitError("Укажите корректную неотрицательную сумму.");
+      return;
+    }
+    if (effectiveDate && expirationDate && expirationDate < effectiveDate) {
+      setSubmitError("Дата окончания не может быть раньше даты начала.");
+      return;
+    }
     setSaving(true);
     setSubmitError("");
     try {
-      await onCreate({ title, counterparty, amount: String(form.get("amount") || "").trim() });
+      const payload = { title, counterparty, amount, contractNumber, effectiveDate, expirationDate, description };
+      if (editingContract) await onUpdate(editingContract.id, payload);
+      else await onCreate(payload);
       setModalOpen(false);
+      setEditingContract(null);
     } catch (caught) {
       setSubmitError(caught instanceof Error ? caught.message : "Не удалось сохранить договор.");
     } finally { setSaving(false); }
@@ -74,13 +95,13 @@ function ContractRegister({ contracts, onCreate, loading, error, currency }: { c
     <div className="register-toolbar">
       <label className="search-field"><Icon name="search" size={17}/><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск по договору или контрагенту" aria-label="Поиск договоров"/></label>
       <select className="filter-select" value={filter} onChange={event => setFilter(event.target.value)} aria-label="Фильтр по статусу"><option>Все статусы</option><option>Черновик</option><option>На согласовании</option><option>Подписан</option></select>
-      <button className="primary-button" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" size={17}/>Новый договор</button>
+      <button className="primary-button" type="button" onClick={() => { setEditingContract(null); setSubmitError(""); setModalOpen(true); }}><Icon name="plus" size={17}/>Новый договор</button>
     </div>
     <div className="table-card">
       <div className="table-heading"><div><h2>Реестр договоров</h2><p>{loading ? "Загружаем из базы…" : `${filtered.length} ${filtered.length === 1 ? "договор" : "договоров"}`}</p></div><span className="subtle-tag">Текущий список</span></div>
-      {error && <div className="register-error" role="alert">{error}</div>}{loading ? <div className="register-empty"><p>Получаем договоры из базы данных…</p></div> : filtered.length ? <div className="table-scroll"><table className="contracts-table"><thead><tr><th>Название</th><th>Контрагент</th><th>Сумма</th><th>Статус</th><th>Изменён</th></tr></thead><tbody>{filtered.map(contract => <tr key={contract.id}><td><strong>{contract.title}</strong><small>№ {contract.id.slice(-6)}</small></td><td>{contract.counterparty}</td><td>{contract.amount}</td><td><span className={`status-badge ${contract.status === "Подписан" ? "is-signed" : contract.status === "На согласовании" ? "is-review" : "is-draft"}`}>{contract.status}</span></td><td>{contract.updated}</td></tr>)}</tbody></table></div> : <div className="register-empty"><div className="empty-state-icon"><Icon name="file" size={23}/></div><h3>{query || filter !== "Все статусы" ? "Ничего не найдено" : "Добавьте первый договор"}</h3><p>{query || filter !== "Все статусы" ? "Измените поисковый запрос или фильтр." : "Создайте карточку, чтобы начать вести реестр договоров."}</p>{!query && filter === "Все статусы" && <button className="secondary-button" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" size={16}/>Создать договор</button>}</div>}
+      {error && <div className="register-error" role="alert">{error}</div>}{loading ? <div className="register-empty"><p>Получаем договоры из базы данных…</p></div> : filtered.length ? <div className="table-scroll"><table className="contracts-table"><thead><tr><th>Название</th><th>Контрагент</th><th>Сумма</th><th>Статус</th><th>Изменён</th><th></th></tr></thead><tbody>{filtered.map(contract => <tr key={contract.id}><td><strong>{contract.title}</strong><small>{contract.contractNumber ? `№ ${contract.contractNumber}` : `ID ${contract.id.slice(-6)}`}</small></td><td>{contract.counterparty}</td><td>{contract.amount}</td><td><span className={`status-badge ${contract.status === "Подписан" ? "is-signed" : contract.status === "На согласовании" ? "is-review" : "is-draft"}`}>{contract.status}</span></td><td>{contract.updated}</td><td><button className="text-button" type="button" onClick={() => { setEditingContract(contract); setSubmitError(""); setModalOpen(true); }}>Изменить</button></td></tr>)}</tbody></table></div> : <div className="register-empty"><div className="empty-state-icon"><Icon name="file" size={23}/></div><h3>{query || filter !== "Все статусы" ? "Ничего не найдено" : "Добавьте первый договор"}</h3><p>{query || filter !== "Все статусы" ? "Измените поисковый запрос или фильтр." : "Создайте карточку, чтобы начать вести реестр договоров."}</p>{!query && filter === "Все статусы" && <button className="secondary-button" type="button" onClick={() => setModalOpen(true)}><Icon name="plus" size={16}/>Создать договор</button>}</div>}
     </div>
-    {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setModalOpen(false); }}><section className="contract-modal" role="dialog" aria-modal="true" aria-labelledby="new-contract-title"><div className="modal-heading"><div><span className="page-eyebrow">РЕЕСТР ДОГОВОРОВ</span><h2 id="new-contract-title">Новый договор</h2></div><button className="modal-close" type="button" onClick={() => setModalOpen(false)} aria-label="Закрыть">×</button></div><form onSubmit={submit}><label>Название договора<input name="title" required autoFocus placeholder="Например, Договор оказания услуг"/></label><label>Контрагент<input name="counterparty" required placeholder="Название компании"/></label><label>Сумма ({currency})<input name="amount" type="number" min="0" step="0.01" placeholder="Например, 250000"/></label>{(submitError || error) && <div className="register-error" role="alert">{submitError || error}</div>}<div className="modal-note"><Icon name="shield" size={16}/>Карточка будет сохранена в базе выбранной организации и защищена правилами доступа.</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => setModalOpen(false)}>Отмена</button><button className="primary-button" type="submit" disabled={saving || loading}>{saving ? "Сохраняем…" : "Создать договор"}</button></div></form></section></div>}
+    {modalOpen && <div className="modal-backdrop" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !saving) { setModalOpen(false); setEditingContract(null); } }}><section className="contract-modal" role="dialog" aria-modal="true" aria-labelledby="contract-modal-title"><div className="modal-heading"><div><span className="page-eyebrow">РЕЕСТР ДОГОВОРОВ</span><h2 id="contract-modal-title">{editingContract ? "Изменить договор" : "Новый договор"}</h2></div><button className="modal-close" type="button" onClick={() => { setModalOpen(false); setEditingContract(null); }} aria-label="Закрыть">×</button></div><form onSubmit={submit}><label>Название договора<input name="title" required minLength={2} maxLength={240} autoFocus defaultValue={editingContract?.title ?? ""} placeholder="Например, Договор оказания услуг"/></label><label>Контрагент<input name="counterparty" required maxLength={240} defaultValue={editingContract?.counterparty === "—" ? "" : editingContract?.counterparty ?? ""} placeholder="Название компании"/></label><label>Номер договора<input name="contractNumber" maxLength={100} defaultValue={editingContract?.contractNumber ?? ""} placeholder="Например, 15/2026"/></label><label>Сумма ({currency})<input name="amount" type="number" min="0" step="0.01" defaultValue={editingContract?.amountValue ?? ""} placeholder="Например, 250000"/></label><div className="contract-date-grid"><label>Дата начала<input name="effectiveDate" type="date" defaultValue={editingContract?.effectiveDate ?? ""}/></label><label>Дата окончания<input name="expirationDate" type="date" defaultValue={editingContract?.expirationDate ?? ""}/></label></div><label>Описание<textarea name="description" rows={3} maxLength={5000} defaultValue={editingContract?.description ?? ""} placeholder="Предмет договора, важные условия…"/></label>{(submitError || error) && <div className="register-error" role="alert">{submitError || error}</div>}<div className="modal-note"><Icon name="shield" size={16}/>{editingContract ? "Изменения сохраняются в выбранной организации. Статус согласования меняется отдельно." : "Карточка будет сохранена в базе выбранной организации и защищена правилами доступа."}</div><div className="modal-actions"><button className="secondary-button" type="button" onClick={() => { setModalOpen(false); setEditingContract(null); }} disabled={saving}>Отмена</button><button className="primary-button" type="submit" disabled={saving || loading}>{saving ? "Сохраняем…" : editingContract ? "Сохранить изменения" : "Создать договор"}</button></div></form></section></div>}
   </section>;
 }
 
@@ -109,7 +130,7 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
     try {
       const { data: rows, error: queryError } = await supabase
         .from("contracts")
-        .select("id, title, contract_number, status, amount, currency, updated_at, counterparty_id")
+        .select("id, title, contract_number, status, amount, currency, updated_at, counterparty_id, effective_date, expiration_date, description")
         .eq("organization_id", organizationId)
         .order("updated_at", { ascending: false });
       if (queryError) throw queryError;
@@ -131,6 +152,11 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
         title: row.title,
         counterparty: row.counterparty_id ? counterpartyNames.get(row.counterparty_id) ?? "Контрагент" : "—",
         amount: row.amount == null ? "—" : `${Number(row.amount).toLocaleString("ru-RU")} ${row.currency}`,
+        amountValue: row.amount == null ? "" : String(row.amount),
+        contractNumber: row.contract_number ?? "",
+        effectiveDate: row.effective_date ?? "",
+        expirationDate: row.expiration_date ?? "",
+        description: row.description ?? "",
         status: statusLabels[row.status] ?? "Черновик",
         updated: new Intl.DateTimeFormat("ru-RU", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(row.updated_at))
       })));
@@ -141,36 +167,40 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
 
   useEffect(() => { void loadContracts(); }, [loadContracts]);
 
-  async function addContract(input: { title: string; counterparty: string; amount: string }) {
+  async function resolveCounterpartyId(name: string, userId: string) {
+    if (!supabase) throw new Error("Supabase не настроен.");
+    const { data: existing, error: lookupError } = await supabase
+      .from("counterparties").select("id").eq("organization_id", organizationId)
+      .ilike("name", name).maybeSingle();
+    if (lookupError) throw lookupError;
+    if (existing?.id) return existing.id;
+    const { data: created, error: createError } = await supabase
+      .from("counterparties")
+      .insert({ organization_id: organizationId, name, created_by: userId })
+      .select("id").single();
+    if (createError) throw createError;
+    return created.id;
+  }
+
+  async function addContract(input: ContractForm) {
     if (!supabase) throw new Error("Supabase не настроен.");
     setContractError("");
     const { data: userResult, error: userError } = await supabase.auth.getUser();
     if (userError || !userResult.user) throw userError ?? new Error("Сессия истекла. Войдите снова.");
 
-    const { data: existingCounterparty, error: lookupError } = await supabase
-      .from("counterparties").select("id").eq("organization_id", organizationId)
-      .ilike("name", input.counterparty).maybeSingle();
-    if (lookupError) throw lookupError;
-
-    let counterpartyId = existingCounterparty?.id ?? null;
-    if (!counterpartyId) {
-      const { data: createdCounterparty, error: createCounterpartyError } = await supabase
-        .from("counterparties")
-        .insert({ organization_id: organizationId, name: input.counterparty, created_by: userResult.user.id })
-        .select("id").single();
-      if (createCounterpartyError) throw createCounterpartyError;
-      counterpartyId = createdCounterparty.id;
-    }
-
+    const counterpartyId = await resolveCounterpartyId(input.counterparty, userResult.user.id);
     const amount = input.amount.trim() ? Number(input.amount) : null;
-    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) throw new Error("Укажите корректную неотрицательную сумму.");
     const { error: insertError } = await supabase.from("contracts").insert({
       organization_id: organizationId,
       title: input.title,
       contract_type: "other",
       counterparty_id: counterpartyId,
+      contract_number: input.contractNumber || null,
       amount,
       currency,
+      effective_date: input.effectiveDate || null,
+      expiration_date: input.expirationDate || null,
+      description: input.description || null,
       status: "draft",
       owner_user_id: userResult.user.id,
       created_by: userResult.user.id
@@ -178,5 +208,28 @@ export function App({ organizationId, organizationName, currency = "BYN" }: { or
     if (insertError) throw insertError;
     await loadContracts();
   }
-  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
+
+  async function updateContract(id: string, input: ContractForm) {
+    if (!supabase) throw new Error("Supabase не настроен.");
+    const { data: userResult, error: userError } = await supabase.auth.getUser();
+    if (userError || !userResult.user) throw userError ?? new Error("Сессия истекла. Войдите снова.");
+    const counterpartyId = await resolveCounterpartyId(input.counterparty, userResult.user.id);
+    const amount = input.amount.trim() ? Number(input.amount) : null;
+    if (amount !== null && (!Number.isFinite(amount) || amount < 0)) throw new Error("Укажите корректную неотрицательную сумму.");
+
+    // WHY: organization_id is included even with RLS, so every write is explicitly scoped to this workspace.
+    const { error: updateError } = await supabase.from("contracts").update({
+      title: input.title,
+      counterparty_id: counterpartyId,
+      contract_number: input.contractNumber || null,
+      amount,
+      currency,
+      effective_date: input.effectiveDate || null,
+      expiration_date: input.expirationDate || null,
+      description: input.description || null
+    }).eq("id", id).eq("organization_id", organizationId);
+    if (updateError) throw updateError;
+    await loadContracts();
+  }
+  return <div className="app-layout"><Sidebar activePage={activePage} onNavigate={setActivePage} organizationName={organizationName}/><main className="main-area"><header className="topbar"><div className="topbar-context"><span className="topbar-overline">LEGALFLOW / WORKSPACE</span><span className="topbar-date">{dateLabel}</span></div><div className="topbar-actions"><span className="topbar-environment">LIVE DATA</span><div className="profile-chip" aria-label="Профиль LegalFlow">LF</div></div></header><div className="page-content"><section className="page-heading"><div><span className="page-eyebrow">{activePage === "overview" ? "ГЛАВНАЯ" : "РАБОЧЕЕ ПРОСТРАНСТВО"}</span><h1>{currentPage.title}</h1><p>{currentPage.description}</p></div>{activePage === "contracts" && <button className="primary-button" type="button" onClick={() => document.querySelector<HTMLButtonElement>(".register-toolbar .primary-button")?.click()}><Icon name="plus" size={17}/>Новый договор</button>}</section>{activePage === "overview" ? <Overview contracts={contracts} onNavigate={setActivePage}/> : activePage === "contracts" ? <ContractRegister contracts={contracts} onCreate={addContract} onUpdate={updateContract} loading={loadingContracts} error={contractError} currency={currency}/> : <Placeholder page={activePage}/>}</div></main></div>;
 }
