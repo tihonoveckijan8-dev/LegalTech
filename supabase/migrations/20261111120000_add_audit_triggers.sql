@@ -2,9 +2,6 @@
 -- WHY: authenticated browser clients must never write their own audit records.
 -- SECURITY DEFINER triggers record mutations inside the same database transaction.
 
-create index if not exists audit_events_org_created_idx
-  on public.audit_events (organization_id, created_at desc);
-
 create or replace function private.audit_contract_write()
 returns trigger
 language plpgsql
