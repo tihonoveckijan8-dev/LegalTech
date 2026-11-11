@@ -37,3 +37,20 @@ Without Supabase configuration, the deployed site shows a setup screen instead o
 Create a test account, confirm email, sign in, and verify that profile creation succeeded. Run tenant-isolation checks with two separate test users before loading real contracts or documents.
 
 The contracts screen now reads organization-scoped contracts from PostgreSQL and creates a counterparty plus a draft contract through the authenticated client. Creation uses two requests, so if contract insertion fails after a new counterparty is created, that counterparty may remain unused and can be cleaned up later.\n\nThe database is not connected merely because the frontend build succeeds. Do not enter production or confidential data until migrations are applied and RLS behavior is verified.
+
+## 8. Private contract documents
+
+The initial migration provisions the private `legal-contracts` Storage bucket. It accepts PDF, DOC, and DOCX files up to 25 MiB. Do not make this bucket public.
+
+Files use the path format `<organization UUID>/<contract UUID>/<unique filename>`. Storage RLS verifies both IDs against the contract row. Active organization members can read files; uploads and deletion are restricted to organization owners, directors, and managers. The `contract_versions` table stores immutable version metadata, including the original filename, MIME type, byte size, uploader, timestamp, and optional change note.
+
+The browser requests a short-lived signed download URL only after the authenticated user has passed Storage RLS. The application does not expose permanent public file URLs.
+
+After applying migrations and configuring the Data API, verify with test accounts:
+1. An owner/director/manager can upload a PDF or DOCX to a test contract.
+2. The file appears as a new version; uploading another file does not overwrite the earlier version.
+3. An active read-only organization member can view the version list and download a file, but cannot upload.
+4. A user who is not an active member cannot list or download the file.
+5. A file larger than 25 MiB and unsupported formats are rejected.
+
+The frontend currently writes version metadata directly through the authenticated Supabase client. If a concurrent upload creates the same version number, the database unique constraint rejects the duplicate rather than overwriting a file; retry after refreshing the history.
