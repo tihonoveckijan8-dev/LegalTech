@@ -9,6 +9,7 @@ type Organization = {
   name: string;
   country_code: string;
   default_currency: string;
+  role: string;
 };
 
 type Membership = {
@@ -53,7 +54,11 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
         .order("name");
       if (organizationsError) throw organizationsError;
 
-      const nextOrganizations = (data ?? []) as Organization[];
+      const roleByOrganizationId = new Map(activeMemberships.map((membership) => [membership.organization_id, membership.role]));
+      const nextOrganizations = ((data ?? []) as Omit<Organization, "role">[]).map((organization) => ({
+        ...organization,
+        role: roleByOrganizationId.get(organization.id) ?? ""
+      }));
       setOrganizations(nextOrganizations);
       setSelectedId((current) =>
         nextOrganizations.some((organization) => organization.id === current)
@@ -106,7 +111,7 @@ export function WorkspaceGate({ session, onSignOut }: { session: Session; onSign
 
   const selectedOrganization = organizations.find((organization) => organization.id === selectedId);
 
-  if (activeOrganization) return <App organizationId={activeOrganization.id} organizationName={activeOrganization.name} currency={activeOrganization.default_currency} />;
+  if (activeOrganization) return <App organizationId={activeOrganization.id} organizationName={activeOrganization.name} currency={activeOrganization.default_currency} organizationRole={activeOrganization.role} />;
 
   return (
     <main className="workspace-screen">
