@@ -9,7 +9,7 @@ Create a new Supabase project for LegalTech. Do not reuse a project belonging to
 
 ## 2. Apply migrations in order
 
-In the Supabase SQL Editor, apply every SQL file in `supabase/migrations` in filename order. The initial schema creates tenant-scoped tables and RLS. The next migration adds the atomic first-organization RPC.
+In the Supabase SQL Editor, apply every SQL file in `supabase/migrations` in filename order. The initial schema creates tenant-scoped tables and RLS; the next migration adds the atomic first-organization RPC; the audit migration adds database-managed activity triggers.
 
 ## 3. Enable the Data API schema\n\nNew Supabase projects no longer expose `public` tables to the Data API automatically. In Project Settings → API → Data API, enable the `public` schema for the project. The migration grants only the required table privileges and enables RLS, but SQL grants do not by themselves expose a schema through the Data API. Keep `anon` access disabled; the app uses authenticated sessions.\n\n## 4. Configure Auth
 
@@ -54,3 +54,18 @@ After applying migrations and configuring the Data API, verify with test account
 5. A file larger than 25 MiB and unsupported formats are rejected.
 
 The frontend currently writes version metadata directly through the authenticated Supabase client. If a concurrent upload creates the same version number, the database unique constraint rejects the duplicate rather than overwriting a file; retry after refreshing the history.
+
+
+## 9. Activity audit
+
+The migration `20261111120000_add_audit_triggers.sql` adds append-only audit events for contract creation, changes to contract fields, and document-version uploads. PostgreSQL triggers write these rows inside the same transaction as the original operation; the browser has no INSERT, UPDATE, or DELETE grant on `audit_events`.
+
+The activity screen is visible only to organization owners and directors. This is enforced twice: the interface hides the menu item for other roles, and the `audit_select_owner_director` RLS policy limits database rows. Event metadata stores changed field names rather than full old/new contract values, avoiding unnecessary duplication of confidential terms.
+
+After applying all migrations, test that:
+1. Creating a contract creates a `contract.created` event.
+2. Updating one or more contract fields creates one `contract.updated` event listing changed field names.
+3. Uploading a new contract version creates a `contract.document_version_uploaded` event.
+4. An owner and director can read the organization journal.
+5. A manager, lawyer, accountant, or user from another organization receives no audit rows.
+6. The authenticated browser client cannot insert, update, or delete `audit_events` directly.
